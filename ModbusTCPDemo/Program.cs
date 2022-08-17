@@ -23,7 +23,9 @@ namespace ModbusTCPDemo
             bool isConnect = client.ConnectTCP(Ip, Port);
             if (isConnect)
             {
-                Console.WriteLine(client.ReadOutputCoils(SlaveId, 0, 10));
+                // Console.WriteLine(client.ReadOutputCoils(SlaveId, 0, 10));
+                // Console.WriteLine(client.ReadInputCoils(SlaveId, 0, 10));
+               // Console.WriteLine(client.ReadOutputRegister(SlaveId, 0, 10));
             }
             else
             {
