@@ -4,7 +4,6 @@
 
 namespace ModbusTCPDemo
 {
-    using System.ComponentModel.DataAnnotations;
     using System.Net;
     using System.Net.Sockets;
 
@@ -306,7 +305,7 @@ namespace ModbusTCPDemo
             string res = string.Empty;
             for (int i = 0; i < temp.Length; i += 2)
             {
-                byte[] byteArray = this.Get16BytesArray(temp, i, DataType);
+                byte[] byteArray = this.Get16BytesArray(temp, i, this.DataType);
                 res += BitConverter.ToUInt16(byteArray, 0).ToString() + " ";
             }
 
@@ -314,30 +313,80 @@ namespace ModbusTCPDemo
         }
 
         /// <summary>
-        /// 写单寄存器. 06功能码.
+        /// 写单寄存器. 06功能码. 4区.
         /// </summary>
         /// <param name="slaveId">设备标识.</param>
         /// <param name="start">起始地址.</param>
         /// <param name="value">值.</param>
-        public void WriteSingleRegister(int slaveId, int start, short value)
+        public void WriteSingleRegister(int slaveId, int start, ushort value)
         {
-            // 1.拼接报文.
             List<byte> sendMsg = new List<byte>();
             sendMsg.Add(0x00);
             sendMsg.Add(0x00);
-
             sendMsg.Add(0x00);
             sendMsg.Add(0x00);
-
             sendMsg.Add(0x00);
-            sendMsg.Add(0x06); // 长度.
-
-            sendMsg.Add((byte)slaveId); // 设备标识.
-
-            sendMsg.Add(0x06); // 功能码.
-
+            sendMsg.Add(0x06);
+            sendMsg.Add((byte)slaveId);
+            sendMsg.Add(0x06);
             sendMsg.Add((byte)(start / 256));  // 起始地址除256得到高八位
             sendMsg.Add((byte)(start % 256));  // 起始地址模256得到低八位
+            sendMsg.Add(BitConverter.GetBytes(value)[0]);
+            sendMsg.Add(BitConverter.GetBytes(value)[1]);
+
+            Console.WriteLine("发送报文:" + BitConverter.ToString(sendMsg.ToArray()));
+            this.clientSocket.Send(sendMsg.ToArray());
+
+            byte[] buffer = new byte[1024];
+            int count = this.clientSocket.Receive(buffer);
+            byte[] result = new byte[count];
+            Array.Copy(buffer, 0, result, 0, count);
+            Console.WriteLine("接收报文:" + BitConverter.ToString(result));
+        }
+
+        /// <summary>
+        /// 写多个寄存器. 10功能码. 4区.
+        /// </summary>
+        /// <param name="slaveId">设备标识.</param>
+        /// <param name="start">起始地址.</param>
+        /// <param name="values">数据.</param>
+        public void WriteMultiRegister(int slaveId, int start, byte[] values)
+        {
+            List<byte> sendMsg = new List<byte>();
+            sendMsg.Add(0x00);
+            sendMsg.Add(0x00);
+            sendMsg.Add(0x00);
+            sendMsg.Add(0x00);
+
+            int lengthbytes = 7 + values.Length;
+            int registerLength = values.Length / 2;
+            sendMsg.Add((byte)(lengthbytes / 256)); // 长度高字节.
+            sendMsg.Add((byte)(lengthbytes % 256)); // 长度低字节.
+
+            sendMsg.Add((byte)slaveId);
+            sendMsg.Add(0x10);
+
+            sendMsg.Add((byte)(start / 256));  // 起始地址除256得到高八位.
+            sendMsg.Add((byte)(start % 256));  // 起始地址模256得到低八位.
+
+            sendMsg.Add((byte)(registerLength >> 8)); // 寄存器数量高字节. 方法同 registerLength/256.
+            sendMsg.Add((byte)registerLength);        // 寄存器数据低字节.
+
+            sendMsg.Add((byte)values.Length); // 字节数.
+
+            foreach (var value in values)
+            {
+                sendMsg.Add(value); // 数据.
+            }
+
+            Console.WriteLine("发送报文:" + BitConverter.ToString(sendMsg.ToArray()));
+            this.clientSocket.Send(sendMsg.ToArray());
+
+            byte[] buffer = new byte[1024];
+            int count = this.clientSocket.Receive(buffer);
+            byte[] result = new byte[count];
+            Array.Copy(buffer, 0, result, 0, count);
+            Console.WriteLine("接收报文:" + BitConverter.ToString(result));
         }
 
         /// <summary>
@@ -398,6 +447,70 @@ namespace ModbusTCPDemo
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// 将ushort类型数据转为byte类型的数组.
+        /// </summary>
+        /// <param name="val">val.</param>
+        /// <returns>btye[].</returns>
+        public byte[] GetByteArray16Bit(ushort val)
+        {
+            byte[] res = BitConverter.GetBytes(val);
+            byte[] result = new byte[2];
+            switch (this.DataType)
+            {
+                case DataType.ABCD:
+                case DataType.CDAB:
+                    result[0] = res[1];
+                    result[1] = res[0];
+                    break;
+
+                case DataType.BADC:
+                case DataType.DCBA:
+                    result = res;
+                    break;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// 将int类型转成byte类型数组.
+        /// </summary>
+        /// <param name="value">int.</param>
+        /// <returns>byte[].</returns>
+        public byte[] GetBytesArrayFromInt32(int value)
+        {
+            byte[] res = BitConverter.GetBytes(value);
+            byte[] resultArray = new byte[4];
+            switch (this.DataType)
+            {
+                case DataType.ABCD:
+                    resultArray[0] = res[3];
+                    resultArray[1] = res[2];
+                    resultArray[2] = res[1];
+                    resultArray[3] = res[0];
+                    break;
+                case DataType.CDAB:
+                    resultArray[0] = res[1];
+                    resultArray[1] = res[0];
+                    resultArray[2] = res[3];
+                    resultArray[3] = res[2];
+                    break;
+                case DataType.BADC:
+                    resultArray[0] = res[2];
+                    resultArray[1] = res[3];
+                    resultArray[2] = res[0];
+                    resultArray[3] = res[1];
+                    break;
+                case DataType.DCBA:
+                    resultArray = res;
+                    break;
+            }
+
+            this.WriteMultiRegister(0x01, 0, resultArray);
+            return resultArray;
         }
     }
 }

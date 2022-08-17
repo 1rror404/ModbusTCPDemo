@@ -25,7 +25,12 @@ namespace ModbusTCPDemo
             {
                 // Console.WriteLine(client.ReadOutputCoils(SlaveId, 0, 10));
                 // Console.WriteLine(client.ReadInputCoils(SlaveId, 0, 10));
-               // Console.WriteLine(client.ReadOutputRegister(SlaveId, 0, 10));
+                // Console.WriteLine(client.ReadOutputRegister(SlaveId, 0, 10));
+                // client.WriteSingleRegister(SlaveId, 1, 123);
+
+                client.GetBytesArrayFromInt32(123);
+
+                // client.WriteMultiRegister(SlaveId, 1, new byte[] { 0x01, 0x02, 0x03 });
             }
             else
             {
